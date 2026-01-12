@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: Instant Load Fix & Robust Startup */
+/* script.js - Jewels-Ai Atelier: Natural Photorealistic Sparkles */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -65,36 +65,38 @@ function lerp(start, end, amt) {
     return (1 - amt) * start + amt * end;
 }
 
-/* --- DYNAMIC SPARKLE GENERATOR --- */
-function drawSparkle(ctx, x, y, size, rotation) {
+/* --- NEW: NATURAL LENS FLARE SPARKLE --- */
+function drawSparkle(ctx, x, y, size, opacity) {
+    if (opacity <= 0.05) return; // Optimization: Don't draw if invisible
+
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(rotation);
-    ctx.globalCompositeOperation = 'screen'; 
-    ctx.globalAlpha = 0.9; 
+    ctx.globalCompositeOperation = 'screen'; // Soft blend
+    ctx.globalAlpha = opacity; 
 
+    // 1. Soft Core Glow (The "Hotspot")
+    const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
+    coreGrad.addColorStop(0, "rgba(255, 255, 255, 0.9)");
+    coreGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.3)");
+    coreGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = coreGrad;
     ctx.beginPath();
-    const spikes = 4;
-    const outerRadius = size;
-    const innerRadius = size * 0.15; 
-    
-    for (let i = 0; i < spikes * 2; i++) {
-        const r = (i % 2 === 0) ? outerRadius : innerRadius;
-        const a = (Math.PI * i) / spikes;
-        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-    }
-    ctx.closePath();
-    
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
-    grad.addColorStop(0, "white");
-    grad.addColorStop(0.4, "rgba(255, 255, 255, 0.8)");
-    grad.addColorStop(1, "rgba(255, 255, 255, 0)");
-    
-    ctx.fillStyle = grad;
+    ctx.arc(0, 0, size, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.globalAlpha = 1.0;
-    ctx.globalCompositeOperation = 'source-over';
+    // 2. Horizontal Streak (Anamorphic Flare)
+    // Makes it look like a camera lens reflection, not a cartoon star
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.beginPath();
+    // Ellipse: x, y, radiusX, radiusY, rotation, startAngle, endAngle
+    ctx.ellipse(0, 0, size * 3, size * 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Vertical Streak (Shorter)
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size * 1.8, size * 0.15, Math.PI / 2, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
 }
 
@@ -157,7 +159,6 @@ async function fetchFromDrive(category) {
     const folderId = DRIVE_FOLDERS[category];
     if (!folderId) return;
     
-    // Only show loading if camera isn't running yet, otherwise keep it subtle
     if(videoElement.paused) {
         loadingStatus.style.display = 'block'; 
         loadingStatus.textContent = "Fetching Designs...";
@@ -173,10 +174,8 @@ async function fetchFromDrive(category) {
             const src = file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+$/, "=s3000") : `https://drive.google.com/uc?export=view&id=${file.id}`;
             return { id: file.id, name: file.name, src: src };
         });
-        // Don't hide loading yet, wait for preload
     } catch (err) { 
         console.error("Drive Error:", err); 
-        // Force hide loading so app doesn't stick
         loadingStatus.style.display = 'none'; 
     }
 }
@@ -201,7 +200,7 @@ async function preloadCategory(type) {
         }
         await Promise.all(promises); 
     }
-    loadingStatus.style.display = 'none'; // Everything ready
+    loadingStatus.style.display = 'none';
 }
 
 /* --- 4. WHATSAPP AUTOMATION --- */
@@ -268,9 +267,13 @@ hands.onResults((results) => {
       canvasCtx.translate(w, 0); canvasCtx.scale(-1, 1);
   }
 
-  // --- PULSE ANIMATION ---
-  const time = Date.now() / 300; 
-  const sparkleScale = 1 + Math.sin(time) * 0.3; 
+  // --- NATURAL TWINKLE LOGIC ---
+  // Slow sine wave (breathing) + random flicker
+  const time = Date.now();
+  // 0.3 base opacity + 0.3 variable opacity (oscillating) = range 0.0 to 0.6
+  // We offset it so it can go negative (which means invisible interval)
+  const shimmer = Math.sin(time / 400); 
+  const sparkleOpacity = Math.max(0, 0.2 + (shimmer * 0.4)); // Clamps between 0 and 0.6
 
   if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       const lm = results.multiHandLandmarks[0];
@@ -320,7 +323,8 @@ hands.onResults((results) => {
           canvasCtx.drawImage(ringImg, -handSmoother.ring.size/2, currentDist * 0.15, handSmoother.ring.size, rHeight); 
           canvasCtx.restore();
 
-          drawSparkle(canvasCtx, handSmoother.ring.x, handSmoother.ring.y + (currentDist * 0.15), handSmoother.ring.size * 0.4 * sparkleScale, time);
+          // Sparkle: Size reduced to 0.2 (was 0.4)
+          drawSparkle(canvasCtx, handSmoother.ring.x, handSmoother.ring.y + (currentDist * 0.15), handSmoother.ring.size * 0.2, sparkleOpacity);
       }
 
       // --- DRAW BANGLE ---
@@ -341,7 +345,8 @@ hands.onResults((results) => {
           const sparkleOffX = -handSmoother.bangle.size/3;
           const sX = handSmoother.bangle.x + Math.cos(handSmoother.bangle.angle) * sparkleOffX;
           const sY = handSmoother.bangle.y + Math.sin(handSmoother.bangle.angle) * sparkleOffX;
-          drawSparkle(canvasCtx, sX, sY, handSmoother.bangle.size * 0.2 * sparkleScale, -time);
+          // Sparkle: Size reduced to 0.1 (was 0.2)
+          drawSparkle(canvasCtx, sX, sY, handSmoother.bangle.size * 0.1, sparkleOpacity);
       }
 
       if (!autoTryRunning) {
@@ -381,9 +386,10 @@ faceMesh.onResults((results) => {
     physics.earringVelocity += force; physics.earringVelocity *= 0.95; physics.earringAngle += physics.earringVelocity;
     const earDist = Math.hypot(rightEar.x - leftEar.x, rightEar.y - leftEar.y);
 
-    const time = Date.now() / 250; 
-    const sparkleScale = 1 + Math.sin(time) * 0.25; 
-    const dynamicRot = physics.earringAngle + time;
+    // Calculate natural shimmer opacity
+    const time = Date.now();
+    const shimmer = Math.sin(time / 400); 
+    const sparkleOpacity = Math.max(0, 0.2 + (shimmer * 0.4)); // Fades in and out naturally
 
     if (earringImg && earringImg.complete) {
       let ew = earDist * 0.25; let eh = (earringImg.height/earringImg.width) * ew;
@@ -407,7 +413,8 @@ faceMesh.onResults((results) => {
           canvasCtx.shadowColor = "transparent"; 
           const tipX = leftEar.x + Math.sin(physics.earringAngle) * (eh * 0.5); 
           const tipY = leftEar.y + Math.cos(physics.earringAngle) * (eh * 0.5);
-          drawSparkle(canvasCtx, tipX, tipY, ew * 0.5 * sparkleScale, dynamicRot);
+          // Reduced size (0.25) and using variable opacity
+          drawSparkle(canvasCtx, tipX, tipY, ew * 0.25, sparkleOpacity);
       }
 
       canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)"; 
@@ -422,7 +429,8 @@ faceMesh.onResults((results) => {
           canvasCtx.shadowColor = "transparent";
           const tipX = rightEar.x + Math.sin(physics.earringAngle) * (eh * 0.5); 
           const tipY = rightEar.y + Math.cos(physics.earringAngle) * (eh * 0.5);
-          drawSparkle(canvasCtx, tipX, tipY, ew * 0.5 * sparkleScale, -dynamicRot);
+          // Reduced size (0.25) and using variable opacity
+          drawSparkle(canvasCtx, tipX, tipY, ew * 0.25, sparkleOpacity);
       }
     }
 
@@ -437,7 +445,8 @@ faceMesh.onResults((results) => {
       canvasCtx.drawImage(necklaceImg, neck.x - nw/2, neck.y + (earDist*0.1), nw, nh);
       
       canvasCtx.shadowColor = "transparent";
-      drawSparkle(canvasCtx, neck.x, neck.y + (earDist*0.1) + nh/2, nw * 0.15 * sparkleScale, time);
+      // Reduced size for necklace sparkle too
+      drawSparkle(canvasCtx, neck.x, neck.y + (earDist*0.1) + nh/2, nw * 0.1, sparkleOpacity);
     }
   }
   canvasCtx.restore();
