@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: Auto-Load First Product & Fast Snap */
+/* script.js - Jewels-Ai Atelier: Shadows & Dynamic Sparkles */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -44,10 +44,8 @@ let voiceEnabled = true;
 /* Physics State */
 let physics = { earringVelocity: 0, earringAngle: 0 };
 
-/* --- STABILIZER VARIABLES --- */
-// 0.8 = Very Fast Snap (Removes flicker, keeps speed)
+/* Stabilizer Variables */
 const SMOOTH_FACTOR = 0.8; 
-
 let handSmoother = {
     active: false,
     ring: { x: 0, y: 0, angle: 0, size: 0 },
@@ -62,9 +60,47 @@ let autoTryTimeout = null;
 let currentPreviewData = { url: null, name: 'Jewels-Ai_look.png' }; 
 let pendingDownloadAction = null; 
 
-/* --- HELPER: LERP (Linear Interpolation) --- */
+/* --- HELPER: LERP --- */
 function lerp(start, end, amt) {
     return (1 - amt) * start + amt * end;
+}
+
+/* --- NEW FEATURE: DYNAMIC SPARKLE GENERATOR --- */
+function drawSparkle(ctx, x, y, size, rotation) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    
+    // Sparkle Blending Mode for "Glow" look
+    ctx.globalCompositeOperation = 'screen'; 
+    ctx.globalAlpha = 0.9; // High brightness
+
+    // Draw Cross Star
+    ctx.beginPath();
+    const spikes = 4;
+    const outerRadius = size;
+    const innerRadius = size * 0.15; // Thin spikes
+    
+    for (let i = 0; i < spikes * 2; i++) {
+        const r = (i % 2 === 0) ? outerRadius : innerRadius;
+        const a = (Math.PI * i) / spikes;
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    
+    // Gradient Fill for the star (White center -> Transparent edge)
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
+    grad.addColorStop(0, "white");
+    grad.addColorStop(0.4, "rgba(255, 255, 255, 0.8)");
+    grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+    
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Reset
+    ctx.globalAlpha = 1.0;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
 }
 
 /* --- 1. FLASH EFFECT --- */
@@ -221,16 +257,18 @@ hands.onResults((results) => {
       canvasCtx.translate(w, 0); canvasCtx.scale(-1, 1);
   }
 
+  // --- PULSE ANIMATION FOR SPARKLE ---
+  // Pulse speed depends on time (Date.now())
+  const time = Date.now() / 300; 
+  const sparkleScale = 1 + Math.sin(time) * 0.3; // Scales between 0.7 and 1.3
+
   if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       const lm = results.multiHandLandmarks[0];
       
-      // --- FAST STABILIZER LOGIC ---
       const mcp = { x: lm[13].x * w, y: lm[13].y * h }; 
       const pip = { x: lm[14].x * w, y: lm[14].y * h };
       const targetRingAngle = calculateAngle(mcp, pip) - (Math.PI / 2);
       const dist = Math.hypot(pip.x - mcp.x, pip.y - mcp.y);
-      
-      // --- RING SIZE: 0.6 ---
       const targetRingWidth = dist * 0.6; 
 
       const wrist = { x: lm[0].x * w, y: lm[0].y * h }; 
@@ -238,11 +276,8 @@ hands.onResults((results) => {
       const indexMcp = { x: lm[5].x * w, y: lm[5].y * h };
       const wristWidth = Math.hypot(pinkyMcp.x - indexMcp.x, pinkyMcp.y - indexMcp.y);
       const targetArmAngle = calculateAngle(wrist, { x: lm[9].x * w, y: lm[9].y * h }) - (Math.PI / 2);
-      
-      // --- BANGLE SIZE: 1.25 ---
       const targetBangleWidth = wristWidth * 1.25; 
 
-      // Apply Fast Stabilization
       if (!handSmoother.active) {
           handSmoother.ring = { x: mcp.x, y: mcp.y, angle: targetRingAngle, size: targetRingWidth };
           handSmoother.bangle = { x: wrist.x, y: wrist.y, angle: targetArmAngle, size: targetBangleWidth };
@@ -265,9 +300,20 @@ hands.onResults((results) => {
           canvasCtx.save(); 
           canvasCtx.translate(handSmoother.ring.x, handSmoother.ring.y); 
           canvasCtx.rotate(handSmoother.ring.angle); 
+          
+          // 1. ADD SHADOW
+          canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)";
+          canvasCtx.shadowBlur = 15;
+          canvasCtx.shadowOffsetX = 8;
+          canvasCtx.shadowOffsetY = 8;
+
           const currentDist = handSmoother.ring.size / 0.6;
           canvasCtx.drawImage(ringImg, -handSmoother.ring.size/2, currentDist * 0.15, handSmoother.ring.size, rHeight); 
           canvasCtx.restore();
+
+          // 2. ADD DYNAMIC SPARKLE (Center of Ring)
+          // Adjust Sparkle Position to sit on the stone
+          drawSparkle(canvasCtx, handSmoother.ring.x, handSmoother.ring.y + (currentDist * 0.15), handSmoother.ring.size * 0.4 * sparkleScale, time);
       }
 
       // --- DRAW BANGLE ---
@@ -276,8 +322,26 @@ hands.onResults((results) => {
           canvasCtx.save(); 
           canvasCtx.translate(handSmoother.bangle.x, handSmoother.bangle.y); 
           canvasCtx.rotate(handSmoother.bangle.angle);
+
+          // 1. ADD SHADOW
+          canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)";
+          canvasCtx.shadowBlur = 15;
+          canvasCtx.shadowOffsetX = 10;
+          canvasCtx.shadowOffsetY = 10;
+
           canvasCtx.drawImage(bangleImg, -handSmoother.bangle.size/2, -bHeight/2, handSmoother.bangle.size, bHeight); 
           canvasCtx.restore();
+
+          // 2. ADD SPARKLE (Left side of bangle)
+          // We calculate an offset so it rotates with the bangle
+          const sparkleOffX = -handSmoother.bangle.size/3;
+          // To draw correctly rotated, we must use the already rotated context or calculate coords
+          // Easiest is to save/restore context for sparkle inside the rotate logic? No, drawSparkle handles transform.
+          // Let's manually calculate rotated offset for the sparkle
+          const sX = handSmoother.bangle.x + Math.cos(handSmoother.bangle.angle) * sparkleOffX;
+          const sY = handSmoother.bangle.y + Math.sin(handSmoother.bangle.angle) * sparkleOffX;
+          
+          drawSparkle(canvasCtx, sX, sY, handSmoother.bangle.size * 0.2 * sparkleScale, -time);
       }
 
       if (!autoTryRunning) {
@@ -317,68 +381,78 @@ faceMesh.onResults((results) => {
     physics.earringVelocity += force; physics.earringVelocity *= 0.95; physics.earringAngle += physics.earringVelocity;
     const earDist = Math.hypot(rightEar.x - leftEar.x, rightEar.y - leftEar.y);
 
+    // --- PULSE & ROTATION FOR EARRING SPARKLES ---
+    const time = Date.now() / 250; 
+    const sparkleScale = 1 + Math.sin(time) * 0.25; 
+    // Sparkle rotation linked to head physics for "Dynamic Glint" feel
+    const dynamicRot = physics.earringAngle + time;
+
     if (earringImg && earringImg.complete) {
       let ew = earDist * 0.25; let eh = (earringImg.height/earringImg.width) * ew;
       const distToLeft = Math.hypot(nose.x - leftEar.x, nose.y - leftEar.y);
       const distToRight = Math.hypot(nose.x - rightEar.x, nose.y - rightEar.y);
       const ratio = distToLeft / (distToLeft + distToRight);
-
-      // --- EARRING PLACEMENT (Preserved) ---
       const xShift = ew * 0.05; 
+
+      // SHADOW SETTINGS
+      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)";
+      canvasCtx.shadowBlur = 12;
+      canvasCtx.shadowOffsetX = 6;
+      canvasCtx.shadowOffsetY = 6;
+
       if (ratio > 0.2) { 
+          // Draw Left Earring
           canvasCtx.save(); 
           canvasCtx.translate(leftEar.x, leftEar.y); 
           canvasCtx.rotate(physics.earringAngle); 
           canvasCtx.drawImage(earringImg, (-ew/2) - xShift, -eh * 0.25, ew, eh); 
           canvasCtx.restore(); 
+
+          // Draw Sparkle (No Shadow for Sparkle)
+          canvasCtx.shadowColor = "transparent"; 
+          // Position sparkle at bottom tip of earring
+          const tipX = leftEar.x + Math.sin(physics.earringAngle) * (eh * 0.5); 
+          const tipY = leftEar.y + Math.cos(physics.earringAngle) * (eh * 0.5);
+          drawSparkle(canvasCtx, tipX, tipY, ew * 0.5 * sparkleScale, dynamicRot);
       }
+
+      // Re-enable Shadow for Right Earring
+      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)"; 
+
       if (ratio < 0.8) { 
+          // Draw Right Earring
           canvasCtx.save(); 
           canvasCtx.translate(rightEar.x, rightEar.y); 
           canvasCtx.rotate(physics.earringAngle); 
           canvasCtx.drawImage(earringImg, (-ew/2) + xShift, -eh * 0.25, ew, eh); 
           canvasCtx.restore(); 
+
+          // Draw Sparkle
+          canvasCtx.shadowColor = "transparent";
+          const tipX = rightEar.x + Math.sin(physics.earringAngle) * (eh * 0.5); 
+          const tipY = rightEar.y + Math.cos(physics.earringAngle) * (eh * 0.5);
+          drawSparkle(canvasCtx, tipX, tipY, ew * 0.5 * sparkleScale, -dynamicRot);
       }
     }
+
     if (necklaceImg && necklaceImg.complete) {
       let nw = earDist * 0.85; let nh = (necklaceImg.height/necklaceImg.width) * nw;
-      // --- NECKLACE PLACEMENT (Preserved) ---
+      
+      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)";
+      canvasCtx.shadowBlur = 15;
+      canvasCtx.shadowOffsetX = 0; // Center shadow for necklace
+      canvasCtx.shadowOffsetY = 10;
+      
       canvasCtx.drawImage(necklaceImg, neck.x - nw/2, neck.y + (earDist*0.1), nw, nh);
+      
+      // Necklace Sparkle (Center)
+      canvasCtx.shadowColor = "transparent";
+      drawSparkle(canvasCtx, neck.x, neck.y + (earDist*0.1) + nh/2, nw * 0.15 * sparkleScale, time);
     }
   }
   canvasCtx.restore();
 });
 
-/* --- INIT CAMERA & AUTO-LOAD --- */
-async function startCameraFast(mode = 'user') {
-    if (videoElement.srcObject && currentCameraMode === mode && videoElement.readyState >= 2) return;
-    currentCameraMode = mode;
-    loadingStatus.style.display = 'block';
-    loadingStatus.textContent = mode === 'environment' ? "Switching to Back Camera..." : "Switching to Selfie Camera...";
-    if (videoElement.srcObject) { videoElement.srcObject.getTracks().forEach(track => track.stop()); }
-    if (mode === 'environment') { videoElement.classList.add('no-mirror'); } else { videoElement.classList.remove('no-mirror'); }
-
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: mode } 
-        });
-        videoElement.srcObject = stream;
-        videoElement.onloadeddata = () => { 
-            videoElement.play(); loadingStatus.style.display = 'none'; 
-            detectLoop(); if(!recognition) initVoiceControl(); 
-        };
-    } catch (err) { alert("Camera Error: " + err.message); loadingStatus.textContent = "Camera Error"; }
-}
-
-async function detectLoop() {
-    if (videoElement.readyState >= 2) {
-        if (!isProcessingFace) { isProcessingFace = true; await faceMesh.send({image: videoElement}); }
-        if (!isProcessingHand) { isProcessingHand = true; await hands.send({image: videoElement}); }
-    }
-    requestAnimationFrame(detectLoop);
-}
-
-// --- UPDATED ONLOAD: Load Earrings Immediately ---
 window.onload = () => selectJewelryType('earrings'); 
 
 /* --- UI HELPERS --- */
