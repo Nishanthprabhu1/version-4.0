@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: Natural Photorealistic Sparkles */
+/* script.js - Jewels-Ai Atelier: Golden Top Sparkle & Softer Shadows */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -65,34 +65,33 @@ function lerp(start, end, amt) {
     return (1 - amt) * start + amt * end;
 }
 
-/* --- NEW: NATURAL LENS FLARE SPARKLE --- */
+/* --- NEW: GOLDEN SPARKLE (Top Edge) --- */
 function drawSparkle(ctx, x, y, size, opacity) {
-    if (opacity <= 0.05) return; // Optimization: Don't draw if invisible
+    if (opacity <= 0.05) return; 
 
     ctx.save();
     ctx.translate(x, y);
-    ctx.globalCompositeOperation = 'screen'; // Soft blend
+    ctx.globalCompositeOperation = 'screen'; 
     ctx.globalAlpha = opacity; 
 
-    // 1. Soft Core Glow (The "Hotspot")
+    // 1. Soft Core Glow (GOLDEN)
     const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
-    coreGrad.addColorStop(0, "rgba(255, 255, 255, 0.9)");
-    coreGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.3)");
-    coreGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+    // Gold Core: 255, 215, 0
+    coreGrad.addColorStop(0, "rgba(255, 255, 220, 0.9)"); // Almost white center
+    coreGrad.addColorStop(0.4, "rgba(255, 215, 0, 0.5)"); // Gold middle
+    coreGrad.addColorStop(1, "rgba(255, 215, 0, 0)"); // Transparent gold edge
     ctx.fillStyle = coreGrad;
     ctx.beginPath();
     ctx.arc(0, 0, size, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. Horizontal Streak (Anamorphic Flare)
-    // Makes it look like a camera lens reflection, not a cartoon star
-    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    // 2. Horizontal Streak (Golden Flare)
+    ctx.fillStyle = "rgba(255, 223, 100, 0.6)"; // Pale gold streak
     ctx.beginPath();
-    // Ellipse: x, y, radiusX, radiusY, rotation, startAngle, endAngle
     ctx.ellipse(0, 0, size * 3, size * 0.15, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 3. Vertical Streak (Shorter)
+    // 3. Vertical Streak
     ctx.beginPath();
     ctx.ellipse(0, 0, size * 1.8, size * 0.15, Math.PI / 2, 0, Math.PI * 2);
     ctx.fill();
@@ -267,13 +266,10 @@ hands.onResults((results) => {
       canvasCtx.translate(w, 0); canvasCtx.scale(-1, 1);
   }
 
-  // --- NATURAL TWINKLE LOGIC ---
-  // Slow sine wave (breathing) + random flicker
+  // Natural Twinkle
   const time = Date.now();
-  // 0.3 base opacity + 0.3 variable opacity (oscillating) = range 0.0 to 0.6
-  // We offset it so it can go negative (which means invisible interval)
   const shimmer = Math.sin(time / 400); 
-  const sparkleOpacity = Math.max(0, 0.2 + (shimmer * 0.4)); // Clamps between 0 and 0.6
+  const sparkleOpacity = Math.max(0, 0.2 + (shimmer * 0.4)); 
 
   if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       const lm = results.multiHandLandmarks[0];
@@ -314,17 +310,26 @@ hands.onResults((results) => {
           canvasCtx.translate(handSmoother.ring.x, handSmoother.ring.y); 
           canvasCtx.rotate(handSmoother.ring.angle); 
           
-          canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)";
-          canvasCtx.shadowBlur = 15;
-          canvasCtx.shadowOffsetX = 8;
-          canvasCtx.shadowOffsetY = 8;
+          // Shadow 50% reduced (0.3 opacity)
+          canvasCtx.shadowColor = "rgba(0, 0, 0, 0.3)";
+          canvasCtx.shadowBlur = 10;
+          canvasCtx.shadowOffsetX = 5;
+          canvasCtx.shadowOffsetY = 5;
 
           const currentDist = handSmoother.ring.size / 0.6;
-          canvasCtx.drawImage(ringImg, -handSmoother.ring.size/2, currentDist * 0.15, handSmoother.ring.size, rHeight); 
+          // Image offset (unchanged)
+          const yOffset = currentDist * 0.15;
+          canvasCtx.drawImage(ringImg, -handSmoother.ring.size/2, yOffset, handSmoother.ring.size, rHeight); 
           canvasCtx.restore();
 
-          // Sparkle: Size reduced to 0.2 (was 0.4)
-          drawSparkle(canvasCtx, handSmoother.ring.x, handSmoother.ring.y + (currentDist * 0.15), handSmoother.ring.size * 0.2, sparkleOpacity);
+          // Sparkle: Top Edge (Same Y as image start)
+          // We must rotate the sparkle coordinate to match the ring rotation
+          // Easiest is to use the ring's position + offset for 'top'
+          // Top edge relative to ring center is roughly at yOffset
+          const sparkleX = handSmoother.ring.x + Math.sin(handSmoother.ring.angle) * (-yOffset); // Approximate top
+          const sparkleY = handSmoother.ring.y + Math.cos(handSmoother.ring.angle) * (yOffset);
+          
+          drawSparkle(canvasCtx, sparkleX, sparkleY, handSmoother.ring.size * 0.2, sparkleOpacity);
       }
 
       // --- DRAW BANGLE ---
@@ -334,18 +339,21 @@ hands.onResults((results) => {
           canvasCtx.translate(handSmoother.bangle.x, handSmoother.bangle.y); 
           canvasCtx.rotate(handSmoother.bangle.angle);
 
-          canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)";
-          canvasCtx.shadowBlur = 15;
-          canvasCtx.shadowOffsetX = 10;
-          canvasCtx.shadowOffsetY = 10;
+          // Shadow 50% reduced
+          canvasCtx.shadowColor = "rgba(0, 0, 0, 0.3)";
+          canvasCtx.shadowBlur = 10;
+          canvasCtx.shadowOffsetX = 6;
+          canvasCtx.shadowOffsetY = 6;
 
           canvasCtx.drawImage(bangleImg, -handSmoother.bangle.size/2, -bHeight/2, handSmoother.bangle.size, bHeight); 
           canvasCtx.restore();
 
-          const sparkleOffX = -handSmoother.bangle.size/3;
-          const sX = handSmoother.bangle.x + Math.cos(handSmoother.bangle.angle) * sparkleOffX;
-          const sY = handSmoother.bangle.y + Math.sin(handSmoother.bangle.angle) * sparkleOffX;
-          // Sparkle: Size reduced to 0.1 (was 0.2)
+          // Sparkle: Top Edge of Bangle (-bHeight/2)
+          // Rotate the offset (-bHeight/2) to find absolute position
+          const sOffY = -bHeight/2; 
+          const sX = handSmoother.bangle.x + Math.cos(handSmoother.bangle.angle + Math.PI/2) * sOffY;
+          const sY = handSmoother.bangle.y + Math.sin(handSmoother.bangle.angle + Math.PI/2) * sOffY;
+          
           drawSparkle(canvasCtx, sX, sY, handSmoother.bangle.size * 0.1, sparkleOpacity);
       }
 
@@ -386,10 +394,9 @@ faceMesh.onResults((results) => {
     physics.earringVelocity += force; physics.earringVelocity *= 0.95; physics.earringAngle += physics.earringVelocity;
     const earDist = Math.hypot(rightEar.x - leftEar.x, rightEar.y - leftEar.y);
 
-    // Calculate natural shimmer opacity
     const time = Date.now();
     const shimmer = Math.sin(time / 400); 
-    const sparkleOpacity = Math.max(0, 0.2 + (shimmer * 0.4)); // Fades in and out naturally
+    const sparkleOpacity = Math.max(0, 0.2 + (shimmer * 0.4)); 
 
     if (earringImg && earringImg.complete) {
       let ew = earDist * 0.25; let eh = (earringImg.height/earringImg.width) * ew;
@@ -398,38 +405,39 @@ faceMesh.onResults((results) => {
       const ratio = distToLeft / (distToLeft + distToRight);
       const xShift = ew * 0.05; 
 
-      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)";
-      canvasCtx.shadowBlur = 12;
-      canvasCtx.shadowOffsetX = 6;
-      canvasCtx.shadowOffsetY = 6;
+      // Shadow reduced to 0.3 (50% of previous)
+      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.3)";
+      canvasCtx.shadowBlur = 8;
+      canvasCtx.shadowOffsetX = 4;
+      canvasCtx.shadowOffsetY = 4;
 
       if (ratio > 0.2) { 
           canvasCtx.save(); 
           canvasCtx.translate(leftEar.x, leftEar.y); 
           canvasCtx.rotate(physics.earringAngle); 
-          canvasCtx.drawImage(earringImg, (-ew/2) - xShift, -eh * 0.25, ew, eh); 
+          canvasCtx.drawImage(earringImg, (-ew/2) - xShift, -eh * 0.20, ew, eh); 
           canvasCtx.restore(); 
 
           canvasCtx.shadowColor = "transparent"; 
-          const tipX = leftEar.x + Math.sin(physics.earringAngle) * (eh * 0.5); 
-          const tipY = leftEar.y + Math.cos(physics.earringAngle) * (eh * 0.5);
-          // Reduced size (0.25) and using variable opacity
+          // Sparkle Position: Top Edge (-eh * 0.20)
+          const tipX = leftEar.x + Math.sin(physics.earringAngle) * (-eh * 0.20); 
+          const tipY = leftEar.y + Math.cos(physics.earringAngle) * (-eh * 0.20); // Top
           drawSparkle(canvasCtx, tipX, tipY, ew * 0.25, sparkleOpacity);
       }
 
-      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)"; 
+      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.3)"; 
 
       if (ratio < 0.8) { 
           canvasCtx.save(); 
           canvasCtx.translate(rightEar.x, rightEar.y); 
           canvasCtx.rotate(physics.earringAngle); 
-          canvasCtx.drawImage(earringImg, (-ew/2) + xShift, -eh * 0.25, ew, eh); 
+          canvasCtx.drawImage(earringImg, (-ew/2) + xShift, -eh * 0.20, ew, eh); 
           canvasCtx.restore(); 
 
           canvasCtx.shadowColor = "transparent";
-          const tipX = rightEar.x + Math.sin(physics.earringAngle) * (eh * 0.5); 
-          const tipY = rightEar.y + Math.cos(physics.earringAngle) * (eh * 0.5);
-          // Reduced size (0.25) and using variable opacity
+          // Sparkle Position: Top Edge
+          const tipX = rightEar.x + Math.sin(physics.earringAngle) * (-eh * 0.20); 
+          const tipY = rightEar.y + Math.cos(physics.earringAngle) * (-eh * 0.20); 
           drawSparkle(canvasCtx, tipX, tipY, ew * 0.25, sparkleOpacity);
       }
     }
@@ -437,16 +445,16 @@ faceMesh.onResults((results) => {
     if (necklaceImg && necklaceImg.complete) {
       let nw = earDist * 0.85; let nh = (necklaceImg.height/necklaceImg.width) * nw;
       
-      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)";
-      canvasCtx.shadowBlur = 15;
+      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.3)";
+      canvasCtx.shadowBlur = 10;
       canvasCtx.shadowOffsetX = 0; 
-      canvasCtx.shadowOffsetY = 10;
+      canvasCtx.shadowOffsetY = 6;
       
       canvasCtx.drawImage(necklaceImg, neck.x - nw/2, neck.y + (earDist*0.1), nw, nh);
       
       canvasCtx.shadowColor = "transparent";
-      // Reduced size for necklace sparkle too
-      drawSparkle(canvasCtx, neck.x, neck.y + (earDist*0.1) + nh/2, nw * 0.1, sparkleOpacity);
+      // Sparkle: Top Edge of Necklace (neck.y + offset)
+      drawSparkle(canvasCtx, neck.x, neck.y + (earDist*0.1), nw * 0.1, sparkleOpacity);
     }
   }
   canvasCtx.restore();
@@ -454,15 +462,8 @@ faceMesh.onResults((results) => {
 
 /* --- UPDATED: SAFE INITIALIZATION --- */
 window.onload = async () => {
-    // 1. Force start camera FIRST so screen isn't blank
     await startCameraFast('user');
-
-    // 2. Safety Timer: If jewelry doesn't load in 5s, hide loading text anyway
-    setTimeout(() => {
-        loadingStatus.style.display = 'none';
-    }, 5000);
-
-    // 3. Load Earrings
+    setTimeout(() => { loadingStatus.style.display = 'none'; }, 5000);
     selectJewelryType('earrings');
 };
 
