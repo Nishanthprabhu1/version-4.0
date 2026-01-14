@@ -6,7 +6,7 @@ const UPLOAD_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby96W9Mf1fvsf
 
 const DRIVE_FOLDERS = {
   earrings: "1ySHR6Id5RxVj16-lf7NMN9I61RPySY9s",
-  chains: "1BHhizdJ4MDfrqITTkynshEL9D0b1MY-J",
+  chains: "1G136WEiA9QBSLtRk0LW1fRb3HDZb4VBD",
   rings: "1iB1qgTE-Yl7w-CVsegecniD_DzklQk90",
   bangles: "1d2b7I8XlhIEb8S_eXnRFBEaNYSwngnba"
 };
